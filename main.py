@@ -694,7 +694,7 @@ def main():
     Main function to demonstrate the portfolio optimization framework.
     """
     # Define optimization parameters
-    stock_symbols = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'META']
+    stock_symbols = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS', 'SBIN.NS']
     start_date = '2018-01-01'
     end_date = '2023-01-01'
     initial_capital = 10000
