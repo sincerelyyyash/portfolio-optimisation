@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Stock Portfolio Optimization using Deep Reinforcement Learning
 
 This project implements a framework for optimizing stock portfolio allocation using Deep Reinforcement Learning (DRL) techniques. The system processes financial data including historical stock prices and technical indicators to train an intelligent agent capable of making data-driven investment decisions while balancing risk and return.
@@ -46,7 +45,7 @@ This project implements a framework for optimizing stock portfolio allocation us
 Run the main script to start the optimization process:
 
 ```bash
-python portfolio_optimization.py
+python main.py
 ```
 
 ### Customization
@@ -91,17 +90,9 @@ The system evaluates portfolio performance using several metrics:
 
 ## Files
 
-- `portfolio_optimization.py`: Main Python script
+- `main.py`: Main Python script
 - `requirements.txt`: Required Python packages
 - `Dockerfile`: Docker configuration for containerized execution
-
-## Output
-
-The program creates several directories:
-
-- `models/`: Saved DRL models
-- `results/`: Performance charts and metrics
-- `logs/` and `tensorboard/`: Training logs for monitoring
 
 ## Dependencies
 
@@ -119,6 +110,3 @@ This project is for educational purposes only. The strategies implemented here a
 ## License
 
 [MIT License](LICENSE)
-=======
-# Optimizing Stock Portfolio Allocation with Deep Reinforcement Learning
->>>>>>> 4ff8b243ee0d895da68946fc1d0f44e4848f2e9c
