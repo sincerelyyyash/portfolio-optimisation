@@ -71,12 +71,13 @@ class PortfolioOptimizationEnv(gym.Env):
         # State space: Historical price data + technical indicators + current portfolio allocation
         # For each stock we have price data and technical indicators for window_size days
         # Plus current portfolio weights
-        num_features = len(df.columns) // len(stocks)  # Features per stock
-        state_dim = window_size * num_features * self.num_stocks + self.num_stocks
+        num_features_per_stock = len([col for col in df.columns if stocks[0] in col])
+        state_dim = window_size * num_features_per_stock * self.num_stocks + self.num_stocks
+    
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(state_dim,), dtype=np.float32
         )
-        
+
         # Initialize portfolio
         self.portfolio_value = initial_amount
         self.portfolio_weights = np.zeros(self.num_stocks)
@@ -108,6 +109,7 @@ class PortfolioOptimizationEnv(gym.Env):
         
         # Return initial observation
         observation = self._get_observation()
+        print(f"Observation shape: {observation.shape}, Expected: {self.observation_space.shape}")
         return observation, {}
     
     def step(self, action):
@@ -193,32 +195,44 @@ class PortfolioOptimizationEnv(gym.Env):
     def _get_observation(self):
         """
         Create state representation for the current time step.
-        
+    
         Returns:
-            observation (np.array): State observation
+            observation (np.array): State observation with fixed shape
         """
         # Extract window of historical data
         start_idx = self.df.index.get_indexer([self.dates[self.current_step - self.window_size]])[0]
         end_idx = self.df.index.get_indexer([self.dates[self.current_step]])[0]
-        
+    
         window_data = self.df.iloc[start_idx:end_idx+1]
-        
+    
         # Reshape data for observation
         obs_list = []
-        
+    
         # Add historical data for each stock
         for stock in self.stocks:
             stock_data = window_data[[col for col in window_data.columns if stock in col]]
             obs_list.append(stock_data.values.flatten())
-        
+    
         # Add current portfolio weights
         obs_list.append(self.portfolio_weights)
-        
+    
         # Combine all features into a single vector
         observation = np.concatenate(obs_list)
-        
-        return observation.astype(np.float32)
     
+        # IMPORTANT: Force the observation to have the right shape
+        # If it's too large, truncate it
+        if observation.shape[0] > self.observation_space.shape[0]:
+            # print(f"Truncating observation from {observation.shape[0]} to {self.observation_space.shape[0]}")
+            observation = observation[:self.observation_space.shape[0]]
+    
+        # If it's too small, pad it with zeros
+        elif observation.shape[0] < self.observation_space.shape[0]:
+            print(f"Padding observation from {observation.shape[0]} to {self.observation_space.shape[0]}")
+            padding = np.zeros(self.observation_space.shape[0] - observation.shape[0])
+            observation = np.concatenate([observation, padding])
+    
+        return observation.astype(np.float32)
+ 
     def _calculate_transaction_cost(self, new_weights):
         """
         Calculate transaction costs for portfolio rebalancing.
@@ -276,34 +290,49 @@ class PortfolioOptimizationEnv(gym.Env):
         
         return new_value
     
+
     def _calculate_reward(self, prev_value, cost):
         """
         Calculate reward based on portfolio return and risk.
-        
+
         Args:
             prev_value (float): Previous portfolio value
             cost (float): Transaction cost
-            
+
         Returns:
             reward (float): Calculated reward
         """
+        # ? Avoid divide-by-zero
+        if prev_value <= 1e-8:
+            prev_value = 1e-8
+        if self.portfolio_value <= 1e-8:
+            self.portfolio_value = 1e-8
+
         # Calculate return
         portfolio_return = (self.portfolio_value - prev_value) / prev_value
-        
+
         # Penalize transaction costs
         reward = portfolio_return - (cost / self.portfolio_value)
-        
+
         # Add Sharpe ratio component if we have enough history
         if len(self.portfolio_history) > 20:
-            # Calculate daily returns
-            returns = np.diff(self.portfolio_history[-20:]) / self.portfolio_history[-21:-1]
-            
-            # Calculate Sharpe ratio (simplified)
-            sharpe = np.mean(returns) / (np.std(returns) + 1e-6) * np.sqrt(252)  # Annualized
-            
-            # Add Sharpe ratio component to reward
-            reward += 0.1 * sharpe
+            portfolio_values = np.array(self.portfolio_history[-21:])
         
+            # ? Sanity check: all values must be > 0
+            if np.any(portfolio_values <= 1e-8):
+                portfolio_values = np.clip(portfolio_values, 1e-8, None)
+        
+            returns = (portfolio_values[1:] - portfolio_values[:-1]) / portfolio_values[:-1]
+        
+            # ? Check for clean std and mean values
+            if not np.isnan(returns).any() and np.std(returns) > 0:
+                sharpe = np.mean(returns) / (np.std(returns) + 1e-6) * np.sqrt(252)
+                reward += 0.1 * sharpe
+
+        # ? Final check
+        if np.isnan(reward):
+            reward = 0.0
+
         return reward
 
     def render(self):
@@ -554,21 +583,24 @@ class PortfolioOptimizer:
         print(f"Mean reward: {mean_reward:.2f} +/- {std_reward:.2f}")
         
         # Get detailed performance metrics
-        obs, _ = env.reset()
+        # obs, _ = env.reset()
+        obs = env.reset()
+        
         done = False
         portfolio_values = []
-        
+
         while not done:
             action, _states = model.predict(obs, deterministic=True)
-            obs, reward, done, _, info = env.step(action)
-            portfolio_values.append(info[0]['portfolio_value'])
-            
+            obs, reward, done, info = env.step(action)
+    
+            info = info[0]  # Unwrap from DummyVecEnv list
+            portfolio_values.append(info['portfolio_value'])
+
             if done:
-                # Extract performance metrics
-                final_portfolio_value = info[0]['portfolio_value']
-                final_return = info[0]['final_return']
-                portfolio_history = info[0]['portfolio_history']
-                benchmark_history = info[0]['benchmark_history']
+                final_portfolio_value = info['portfolio_value']
+                final_return = info['final_return']
+                portfolio_history = info['portfolio_history']
+                benchmark_history = info['benchmark_history']
         
         # Calculate more performance metrics
         portfolio_returns = np.diff(portfolio_history) / portfolio_history[:-1]
@@ -699,7 +731,7 @@ def main():
     end_date = '2023-01-01'
     initial_capital = 10000
     window_size = 30
-    algorithm = 'ppo'  # Choose from 'ppo', 'a2c', 'dqn', 'sac'
+    algorithm = 'a2c'  # Choose from 'ppo', 'a2c', 'dqn', 'sac'
     
     # Create and run optimizer
     optimizer = PortfolioOptimizer(
@@ -712,8 +744,8 @@ def main():
     )
     
     # Run optimization process
-    results = optimizer.run_optimization(total_timesteps=50000)  # Reduced for demonstration
-    
+    # results = optimizer.run_optimization(total_timesteps=50000)  # Reduced for demonstration
+    results = optimizer.run_optimization(total_timesteps=10000)    
     return results
 
 
