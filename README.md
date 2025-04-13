@@ -13,20 +13,7 @@ This project implements a framework for optimizing stock portfolio allocation us
 
 ## Installation
 
-### Option 1: Standard Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/sincerelyyyash/portfolio-optimisation.git
-   cd portfolio-optimisation
-   ```
-
-2. Install the required packages:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Option 2: Docker Installation
+### Option 1: Docker Installation (Recommended)
 
 1. Build the Docker image:
    ```bash
@@ -40,6 +27,19 @@ This project implements a framework for optimizing stock portfolio allocation us
 3. Run the command (inside container):
    ```bash
    python main.py
+   ```
+
+### Option 2: Standard Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/sincerelyyyash/portfolio-optimisation.git
+   cd portfolio-optimisation
+   ```
+
+2. Install the required packages:
+   ```bash
+   pip install -r requirements.txt
    ```
 
 ## Usage
